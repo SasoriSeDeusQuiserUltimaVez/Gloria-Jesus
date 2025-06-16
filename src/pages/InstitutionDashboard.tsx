@@ -41,23 +41,67 @@ export const InstitutionDashboard: React.FC = () => {
 
   useEffect(() => {
     if (user && user.type === 'institution') {
-      // Find institution by user ID
-      const inst = institutions.find(inst => inst.id === user.id);
-      if (inst) {
+      // Find institution by user ID or email
+      let inst = institutions.find(inst => inst.id === user.id);
+      
+      // If not found by ID, try to find by email (for backward compatibility)
+      if (!inst) {
+        inst = institutions.find(inst => inst.email === user.email);
+      }
+      
+      // If still not found, create institution from user data
+      if (!inst && user.cnpj) {
+        const newInstitution: Institution = {
+          ...user,
+          description: user.description || 'Descrição não informada',
+          address: user.address || {
+            id: '',
+            street: '',
+            number: '',
+            neighborhood: '',
+            city: '',
+            state: '',
+            zipCode: '',
+            latitude: -23.5505,
+            longitude: -46.6333
+          },
+          workingHours: user.workingHours || [
+            { dayOfWeek: 0, isOpen: false, openTime: '08:00', closeTime: '17:00' },
+            { dayOfWeek: 1, isOpen: true, openTime: '08:00', closeTime: '17:00' },
+            { dayOfWeek: 2, isOpen: true, openTime: '08:00', closeTime: '17:00' },
+            { dayOfWeek: 3, isOpen: true, openTime: '08:00', closeTime: '17:00' },
+            { dayOfWeek: 4, isOpen: true, openTime: '08:00', closeTime: '17:00' },
+            { dayOfWeek: 5, isOpen: true, openTime: '08:00', closeTime: '17:00' },
+            { dayOfWeek: 6, isOpen: false, openTime: '08:00', closeTime: '17:00' }
+          ],
+          acceptedCategories: user.acceptedCategories || [],
+          rating: user.rating || 0,
+          totalRatings: user.totalRatings || 0,
+          verified: user.verified || false
+        };
+        
+        setInstitution(newInstitution);
+        // Save the new institution
+        updateInstitution(newInstitution);
+      } else if (inst) {
         setInstitution(inst);
+      }
+      
+      if (inst || user.cnpj) {
+        const institutionId = inst?.id || user.id;
         setEditForm({
-          name: inst.name,
-          email: inst.email,
-          phone: inst.phone,
-          description: inst.description,
-          acceptedCategories: inst.acceptedCategories
+          name: inst?.name || user.name,
+          email: inst?.email || user.email,
+          phone: inst?.phone || user.phone,
+          description: inst?.description || 'Descrição não informada',
+          acceptedCategories: inst?.acceptedCategories || []
         });
         
-        const filtered = donations.filter(donation => donation.institutionId === inst.id);
+        const filtered = donations.filter(donation => donation.institutionId === institutionId);
         setInstitutionDonations(filtered);
       }
     }
-  }, [user, donations, institutions]);
+  }, [user, donations, institutions, updateInstitution]);
 
   const handleConfirmDelivery = (donationId: string) => {
     const donation = institutionDonations.find(d => d.id === donationId);
@@ -168,18 +212,61 @@ export const InstitutionDashboard: React.FC = () => {
     rating: institution?.rating || 0
   };
 
-  if (!institution) {
+  // Show loading state while checking authentication
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center">
+            <div className="loading-spinner mx-auto mb-4"></div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              Carregando...
+            </h1>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if user is institution type
+  if (user.type !== 'institution') {
     return (
       <div className="min-h-screen bg-gray-50">
         <Header />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center">
             <h1 className="text-2xl font-bold text-gray-900">
-              Instituição não encontrada
+              Acesso negado
             </h1>
             <p className="text-gray-600 mt-2">
-              Verifique se você está logado como uma instituição.
+              Esta página é apenas para instituições. Você está logado como {user.type}.
             </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If no institution data and user doesn't have CNPJ, they need to complete registration
+  if (!institution && !user.cnpj) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-gray-900">
+              Perfil incompleto
+            </h1>
+            <p className="text-gray-600 mt-2">
+              Você precisa completar o cadastro da sua instituição para acessar o dashboard.
+            </p>
+            <Button
+              onClick={() => window.location.href = '/register'}
+              className="mt-4 bg-green-600 hover:bg-green-700 text-white"
+            >
+              Completar cadastro
+            </Button>
           </div>
         </div>
       </div>
@@ -196,7 +283,7 @@ export const InstitutionDashboard: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
-                {institution.name} 🏢
+                {institution?.name || user.name} 🏢
               </h1>
               <p className="text-gray-600 mt-2">
                 Gerencie as doações recebidas e mantenha seu perfil atualizado.
@@ -358,7 +445,7 @@ export const InstitutionDashboard: React.FC = () => {
             Categorias aceitas atualmente
           </h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {institution.acceptedCategories.map((categoryName) => {
+            {(institution?.acceptedCategories || []).map((categoryName) => {
               const category = categories.find(cat => cat.name === categoryName);
               return (
                 <div
@@ -370,7 +457,7 @@ export const InstitutionDashboard: React.FC = () => {
               );
             })}
           </div>
-          {institution.acceptedCategories.length === 0 && (
+          {(!institution?.acceptedCategories || institution.acceptedCategories.length === 0) && (
             <p className="text-gray-500 text-center py-4">
               Nenhuma categoria selecionada. Clique em "Editar perfil" para adicionar.
             </p>

@@ -8,6 +8,13 @@ export interface User {
   cnpj?: string;
   type: 'donor' | 'institution' | 'admin';
   profileImage?: string;
+  description?: string;
+  address?: Address;
+  workingHours?: WorkingHours[];
+  acceptedCategories?: string[];
+  rating?: number;
+  totalRatings?: number;
+  verified?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

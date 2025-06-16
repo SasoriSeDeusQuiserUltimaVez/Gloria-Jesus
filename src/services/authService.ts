@@ -76,7 +76,23 @@ class AuthService {
   async getCurrentUser(): Promise<User | null> {
     try {
       const userJson = localStorage.getItem(this.CURRENT_USER_KEY);
-      return userJson ? JSON.parse(userJson) : null;
+      if (!userJson) return null;
+      
+      const user = JSON.parse(userJson);
+      
+      // Verify user still exists in the system
+      const users = await fileSystemService.getAllUsers();
+      const currentUser = users.find(u => u.id === user.id);
+      
+      if (!currentUser) {
+        // User no longer exists, clear local storage
+        this.logout();
+        return null;
+      }
+      
+      // Update local storage with latest user data
+      localStorage.setItem(this.CURRENT_USER_KEY, JSON.stringify(currentUser));
+      return currentUser;
     } catch (error) {
       console.error('Get current user error:', error);
       return null;
